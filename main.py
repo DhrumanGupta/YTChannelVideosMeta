@@ -4,7 +4,7 @@ from threading import Event
 import re
 from datetime import datetime
 from datetime import timedelta
-import json
+import sys
 
 event = Event()
 
@@ -17,6 +17,10 @@ def get_publish_date(released_ago):
         time = timeNow - timedelta(minutes=intValue)
     elif "hour" in released_ago or "hours" in released_ago:
         time = timeNow - timedelta(hours=intValue)
+    elif "day" in released_ago or "days" in released_ago:
+        time = timeNow - timedelta(days=intValue)
+    elif "week" in released_ago or "weeks" in released_ago:
+        time = timeNow - timedelta(days=(intValue*7))
     else:
         return timeNow.strftime("%m/%d/%Y, %H:%M:%S")
         
@@ -25,14 +29,11 @@ def get_publish_date(released_ago):
 def get_videos_from_channel(link):
     session = HTMLSession()
     response = session.get(link)
-    event.wait(3)
-    print("Started. This might take long depending on the aomunt of videos the channel has.")
-    response.html.render(scrolldown=0, sleep=3)
-        
+    event.wait(1)
+    response.html.render(scrolldown=1, sleep=1)
     page = bs(response.html.html, "html.parser")
     
     vids = page.findAll("a",{"id":"thumbnail"}, href=True)
-    event.wait(2)
     
     data = []
     i = 0
@@ -43,18 +44,24 @@ def get_videos_from_channel(link):
             'Title' : vid.parent.findNext("div", {"id" : "details"}).findChild("a", {"id" : "video-title"}).text,
             'Video ID' : vid['href'][9:],
             'Duration' : vid.findChild("span", {"class" : "ytd-thumbnail-overlay-time-status-renderer"}).text.replace('\n', '').replace(' ', ''),
-            'Publish Date' : get_publish_date(vid.parent.findNext("div", {"id" : "details"}).findChild("div", {"id" : 'metadata-line'}).findChild("span").findNext("span").text)
+            'Publish Date' : get_publish_date(vid.parent.findNext("div", {"id" : "details"}).findChild("div", {"id" : 'metadata-line'}).findChild("span").findNext("span").text),
+            'Thumbnail' : vid.findChild("img", {"id" : "img"}).get('src')
             }
         data.append(obj)
         if i == 10: break
         #event.wait(2)
     
-    jsonData = json.dumps(data, indent=4)
+    jsonData = str(data)
     
-    with open("json.txt", "w") as jsonFile:
-        jsonFile.write(jsonData)
+    try:
+        with open("json.txt", "w") as jsonFile:
+            jsonFile.write(jsonData)
+    except UnicodeEncodeError:
+        print(jsonData)
+        return
+    print(jsonData)
     
-    print("Created 'json.txt' in your relative path")
-    #print(f"{len(vids)} videos scraped.")
-   
-get_videos_from_channel(input("Videos tab url of the channel: "))
+if len(sys.argv) == 1:
+    print("Please put a link!")
+else:
+    get_videos_from_channel(sys.argv[1])
